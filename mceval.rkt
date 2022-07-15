@@ -23,6 +23,14 @@
         ((assignment? exp) (eval-assignment exp env))
         ((definition? exp) (eval-definition exp env))
         ((if? exp) (eval-if exp env))
+        ;;New Prob 2
+        ((and? exp) (eval-and (cdr exp) env))
+        ((or? exp) (eval-or (cdr exp) env))
+        ;;New Prob 3
+        ((let? exp) (eval-let exp env))
+        ;;New Prob 4
+        ((delay? exp) (eval-delay exp env))
+        ((force? exp) (eval-force exp env))
         ((lambda? exp)
          (make-procedure (lambda-parameters exp)
                          (lambda-body exp)
@@ -61,6 +69,51 @@
   (if (true? (mceval (if-predicate exp) env))
       (mceval (if-consequent exp) env)
       (mceval (if-alternative exp) env)))
+;;New Prob 2
+(define (eval-and exp env)
+  (if (null? exp) true ;;if empty, true
+      (if (null? (cdr exp)) ;;only one argument
+          (mceval (car exp) env) ;;return eval of that one argument
+      (if (true? (mceval (car exp) env)) ;; if first is true, continue
+          (eval-and (cdr exp) env)
+          false))))
+;;New Prob 2
+(define (eval-or exp env)
+  (if (null? exp) false ;;if empty, false
+      (if (true? (mceval (car exp) env)) ;; if true, continue
+          true
+          (eval-or (cdr exp) env))))
+
+;;New Prob 3
+(define (let-bindings exp) (cadr exp))
+(define (let-vars exp) (map car (let-bindings exp)))
+(define (let-vals exp) (map cadr (let-bindings exp)))
+(define (let-body exp)(cddr exp))
+(define (eval-let exp env)
+  
+  (define bindings (let-bindings exp))
+  
+  (define letvars (let-vars exp))
+  
+  (define letvals (let-vals exp))
+  (define letbody(let-body exp))
+  (eval-sequence letbody (extend-environment letvars (list-of-values letvals env) env))
+  )
+
+;;New Prob 4
+(define (eval-force exp env)
+  (mceval (cdr exp) env)
+  )
+
+(define (delay-lambda exp)
+  (make-lambda '() (cdr exp)))
+
+
+(define (eval-delay exp env)
+  (mceval (list 'memo-proc (delay-lambda exp)) env)
+  )
+
+
 
 (define (eval-sequence exps env)
   (cond ((last-exp? exps) (mceval (first-exp exps) env))
@@ -130,6 +183,19 @@
 (define (make-lambda parameters body)
   (cons 'lambda (cons parameters body)))
 
+;;New Prob 2
+(define (and? exp) (tagged-list? exp 'and))
+
+;;New Prob 2
+(define (or? exp) (tagged-list? exp 'or))
+
+;;New Prob 3
+(define (let? exp) (tagged-list? exp 'let))
+
+;;New Prob 4
+(define (delay? exp) (tagged-list? exp 'delay))
+;;New Prob 4
+(define (force? exp) (tagged-list? exp 'force))
 
 (define (if? exp) (tagged-list? exp 'if))
 
@@ -293,18 +359,44 @@
                              the-empty-environment)))
     (define-variable! 'true true initial-env)
     (define-variable! 'false false initial-env)
+    ;;New Prob 4
+    (define-variable! 'null null initial-env)
+    (eval-definition '(define (not x) (if x false true)) initial-env)
+    (eval-definition '(define (memo-proc proc)
+                        (let ((already-run? false)
+                              (result null))
+                          (lambda ()
+                            (if (not already-run?)
+                                (begin (set! result (proc))
+                                       (set! already-run? true)
+                                       result)
+                                result)))) initial-env)
     initial-env))
 
 (define (primitive-procedure? proc)
   (tagged-list? proc 'primitive))
 
 (define (primitive-implementation proc) (cadr proc))
+;;New Prob 1
+(define (primitive-error)
+  (error "Metacircular Interpreter Aborted"))
 
 (define primitive-procedures
   (list (list 'car car)
         (list 'cdr cdr)
         (list 'cons cons)
         (list 'null? null?)
+        ;;New Prob 1
+        (list '+ +)
+        (list '* *)
+        (list '- -)
+        (list '/ /)
+        (list '< <)
+        (list '<= <=)
+        (list '= =)
+        (list '>= >=)
+        (list '> >)
+        (list 'error primitive-error)
 ;;      more primitives
         ))
 
